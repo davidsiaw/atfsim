@@ -20,12 +20,137 @@ module dff(
 
 endmodule;
 
+
+module pt1pt2_section(
+  input pt1_mux, pt2_mux, xor_a_mux, xor_b_mux, xor_inv_mux,
+  input pt1_v, pt2_v,
+  output y2_v, y1y2vcc_v, mc_flb_v, sti1_v, sti2_v
+);
+
+  wire y1, y2;
+  dualmux pt1m(
+    .msel(pt1_mux),
+    .q0default(1'b0),
+    .q1default(1'b0),
+    .signal(pt1_v),
+    .q0(sti1_v),
+    .q1(y1)
+  );
+
+  dualmux pt2m(
+    .msel(pt2_mux),
+    .q0default(1'b0),
+    .q1default(1'b0),
+    .signal(pt2_v),
+    .q0(sti2_v),
+    .q1(y2)
+  );
+
+  wire y1y2vcc;
+  pt1pt2_routing p1p2r(
+    .xor_a_mux(xor_a_mux), .xor_b_mux(xor_b_mux), .xor_inv_mux(xor_inv_mux),
+    .y1(y1), .y2(y2),
+    .mc_flb(mc_flb_v), .y1y2vcc(y1y2vcc)
+  );
+
+  assign y2_v = y2;
+endmodule;
+
+
+module pt3_section(
+  input pt3_mux,
+  input pt3_v, gclrgnd_v,
+  output sti3_v, ffar_v
+);
+
+  wire ar;
+  dualmux pt3m(
+    .msel(pt3_mux),
+    .q0default(1'b0),
+    .q1default(1'b0),
+    .signal(pt3_v),
+    .q0(sti3_v),
+    .q1(ar)
+  );
+
+  pt3_routing p3r(
+    .ar(ar), .gclrgnd(gclrgnd_v),
+    .ffar(ffar_v)
+  );
+endmodule;
+
+
+module pt4_section(
+  input pt4_mux, pt4_func_mux,
+  input pt4_v, qclk_v,
+  output sti4_v, ffen_v, ffclk_v
+);
+
+  wire ce;
+  dualmux pt4m(
+    .msel(pt4_mux),
+    .q0default(1'b0),
+    .q1default(1'b0),
+    .signal(pt4_v),
+    .q0(sti4_v),
+    .q1(ce)
+  );
+
+  pt4_routing p4r(
+    .pt4_mux(pt4_mux), .pt4_func_mux(pt4_func_mux),
+    .ce(ce), .gclk(qclk_v),
+    .ffen(ffen_v), .ffclk(ffclk_v)
+  );
+endmodule;
+
+module pt5_section(
+  input pt5_mux, pt5_func_mux,
+  input pt5_v,
+  output sti5_v, as_v, vcc_pt5_v
+);
+
+  wire as_oe;
+  dualmux pt5m(
+    .msel(pt5_mux),
+    .q0default(1'b0),
+    .q1default(1'b0),
+    .signal(pt5_v),
+    .q0(sti5_v),
+    .q1(as_oe)
+  );
+
+  pt5_routing p5r(
+    .pt5_func_mux(pt5_func_mux),
+    .as_oe(as_oe),
+    .as(as_v), .vcc_pt5(vcc_pt5_v)
+  );
+endmodule;
+
+module prexor_section(
+  input pt1_mux, pt2_mux, xor_a_mux, xor_b_mux, xor_inv_mux,
+  input pt1_v, pt2_v, ffqn_v,
+  output xtb_v, sti1_v, sti2_v, mc_flb_v, y2_v
+);
+  wire y1y2vcc;
+  pt1pt2_section pt1pt2m(
+    .pt1_mux(pt1_mux), .pt2_mux(pt2_mux), .xor_a_mux(xor_a_mux), .xor_b_mux(xor_b_mux), .xor_inv_mux(xor_inv_mux),
+    .pt1_v(pt1_v), .pt2_v(pt2_v),
+    .y2_v(y2_v), .y1y2vcc_v(y1y2vcc), .sti1_v(sti1_v), .sti2_v(sti2_v), .mc_flb_v(mc_flb_v)
+  );
+
+  xor_b_side xorb(
+    .xor_b_mux(xor_b_mux),
+    .y1y2vcc(y1y2vcc), .ffqn(ffqn_v),
+    .xtb(xtb_v)
+  );
+endmodule;
+
 module xornest(
   input xor_inv_mux, o_mux, d_mux,
   input xta, xtb, y2, q,
   output ffd, out
 );
-  wire qxor;
+  wire qnxor, qxor;
   assign qxor = xta ^ xtb;
   assign qnxor = ~qxor;
 
@@ -112,7 +237,7 @@ module pt4_routing(
   output ffen, ffclk
 );
 
-  wire pt4clk;
+  wire pt4clk, qclk;
 
   mux selectclk(
     .mux(pt4_mux),
