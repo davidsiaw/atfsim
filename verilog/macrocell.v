@@ -1,4 +1,5 @@
 `include "cellcore.v"
+`include "productinput.v"
 
 // The Macrocell here is defined as the cellcore + the product
 // input modules that give the macrocell its product terms.
@@ -47,7 +48,7 @@ module macrocell(
   cellcore mc(
     pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
     gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
-    xor_inv_mux, d_mux, dfast_mux, storage_mux, fb_mux, o_mux,
+    xor_inv_mux, d_mux, storage_mux, fb_mux, o_mux,
     oe_mux,
     gclk_mux,
 
