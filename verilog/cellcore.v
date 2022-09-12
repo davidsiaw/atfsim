@@ -5,6 +5,8 @@
 `include "xor_a_side.v"
 `include "xor_b_side.v"
 
+`include "xornest.v"
+
 `include "pt3_section.v"
 `include "pt4_section.v"
 `include "pt5_section.v"
@@ -12,8 +14,6 @@
 `include "outputpiece.v"
 `include "sumpiece.v"
 `include "storage.v"
-
-`include "xornest.v"
 
 // conventions:
 //
@@ -25,7 +25,6 @@
 // - internals have no suffix
 // - common design patters should be refactored into a module
 
-(* cxxrtl_blackbox *)
 module cellcore(
         input pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
               gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,

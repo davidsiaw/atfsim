@@ -3,7 +3,6 @@
 // The selection procedure here is simple
 // it just chooses the input where it is 0 and 1 everywhere else
 // the fitter needs to ground all inputs of unused AND gates
-(* cxxrtl_blackbox *)
 module productinput(
   input [0:95]ptbitmap_mux,
   input [0:15]mc_flb,
