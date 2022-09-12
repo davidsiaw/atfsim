@@ -26,7 +26,7 @@ module atf1502(
   // logic_block lbb();
 
 
-endmodule;
+endmodule
 
 module globalswitch(
   input [0:45]global_mux,
@@ -37,7 +37,7 @@ module globalswitch(
 );
 
   // todo 
-endmodule;
+endmodule
 
 module switchbox(
   input [0:31]pad,
@@ -45,7 +45,7 @@ module switchbox(
   output [0:39]uim
 );
 
-endmodule;
+endmodule
 
 // The selection procedure here is simple
 // it just chooses the input where it is 0 and 1 everywhere else
@@ -92,7 +92,7 @@ module productinput(
   endgenerate
 
   assign pt = &andinput;
-endmodule;
+endmodule
 
 // This is basically the macrocell + the product input modules that
 // give the macrocell its product terms.
@@ -131,6 +131,8 @@ module macrogroup(
     end
   endgenerate;
 
+  wire inv_mc_flb;
+
   macrocell mc(
     pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
     gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
@@ -142,9 +144,11 @@ module macrogroup(
     casin,
     gclr, goe, gclk,
 
-    casout, pad, mc_flb, mc_fb
+    casout, pad, inv_mc_flb, mc_fb
   );
-endmodule;
+
+  assign mc_flb = ~inv_mc_flb;
+endmodule
 
 module logic_block(
   input [0:65000]logicgroupbitmap_mux,
@@ -159,9 +163,11 @@ module logic_block(
 
   // todo
 
+  // write a script to program the mux bitmap mappings
+
   wire [0:15]mc_flb;
 
   // macrogroup mc[0:15]();
   //
 
-endmodule;
+endmodule

@@ -1,24 +1,84 @@
 `include "components.v"
 
+// combination of output selector and tristate buffer
 module outputpiece(
   input o_mux,
   input out, ffq, oe,
   output q
 );
 
-  // * todo * implement out mux and buffer
+  wire output_wire;
 
-endmodule;
+  mux outmux(
+    .mux(o_mux),
+    .a0(ffq),
+    .a1(out),
+    .q(output_wire)
+  );
 
+  mux tristate(
+    .mux(oe),
+    .a0(1'bz),
+    .a1(output_wire),
+    .q(q)
+  );
+endmodule
+
+// the macrocell storage element
 module dff(
   input storage_mux,
   input ffd, ffclk, ffen, ffas, ffar,
   output ffq, ffqn
 );
+  
+  wire qlatch, qff, q;
 
-  // * todo * implement ff
+  // yosys doesn't let us trigger on both en and clk so
+  // we just make both kinds of storage and choose one to use
+  dff_flipflop ff_mode(.ffd(ffd), .ffclk(ffclk), .ffen(ffen), .ffas(ffas), .ffar(ffar), .ffq(qff));
+  dff_latch latch_mode(.ffd(ffd), .ffclk(ffclk), .ffen(ffen), .ffas(ffas), .ffar(ffar), .ffq(qlatch));
 
-endmodule;
+  assign q = qff & storage_mux | qlatch & ~storage_mux;
+
+  assign ffq = q;
+  assign ffqn = ~q;
+endmodule
+
+module dff_latch(
+  input ffd, ffclk, ffen, ffas, ffar,
+  output reg ffq
+);
+
+  always @ (*) begin
+    if (ffar == 1)
+      ffq <= 0;
+
+    else if (ffas == 1)
+      ffq <= 1;
+
+    else if (ffclk == 1 && ffen == 1)
+      ffq <= ffd;
+
+  end
+endmodule
+
+module dff_flipflop(
+  input ffd, ffclk, ffen, ffas, ffar,
+  output reg ffq
+);
+
+  always @ (posedge ffclk or posedge ffar or posedge ffas) begin
+    if (ffar == 1)
+      ffq <= 0;
+
+    else if (ffas == 1)
+      ffq <= 1;
+
+    else if (ffclk == 1 && ffen == 1)
+      ffq <= ffd;
+
+  end
+endmodule
 
 
 module pt1pt2_section(
@@ -54,7 +114,7 @@ module pt1pt2_section(
   );
 
   assign y2_v = y2;
-endmodule;
+endmodule
 
 
 module pt3_section(
@@ -77,7 +137,7 @@ module pt3_section(
     .ar(ar), .gclrgnd(gclrgnd_v),
     .ffar(ffar_v)
   );
-endmodule;
+endmodule
 
 
 module pt4_section(
@@ -101,7 +161,7 @@ module pt4_section(
     .ce(ce), .gclk(qclk_v),
     .ffen(ffen_v), .ffclk(ffclk_v)
   );
-endmodule;
+endmodule
 
 module pt5_section(
   input pt5_mux, pt5_func_mux,
@@ -124,7 +184,7 @@ module pt5_section(
     .as_oe(as_oe),
     .as(as_v), .vcc_pt5(vcc_pt5_v)
   );
-endmodule;
+endmodule
 
 module prexor_section(
   input pt1_mux, pt2_mux, xor_a_mux, xor_b_mux, xor_inv_mux,
@@ -143,7 +203,7 @@ module prexor_section(
     .y1y2vcc(y1y2vcc), .ffqn(ffqn_v),
     .xtb(xtb_v)
   );
-endmodule;
+endmodule
 
 module xornest(
   input xor_inv_mux, o_mux, d_mux,
@@ -156,6 +216,7 @@ module xornest(
 
   wire y2q;
 
+  // o_mux is also dfast_mux
   mux y2orq(
     .mux(o_mux),
     .a0(q),
@@ -166,8 +227,8 @@ module xornest(
   wire inverted;
   mux invert(
     .mux(xor_inv_mux),
-    .a0(qxor),
-    .a1(qnxor),
+    .a0(qnxor),
+    .a1(qxor),
     .q(inverted)
   );
 
@@ -178,14 +239,16 @@ module xornest(
     .q(ffd)
   );
 
-endmodule;
+  assign out = inverted;
+
+endmodule
 
 module sumpiece(
   input casin, sti1, sti2, sti3, sti4, sti5,
   output sum
 );
   assign sum = casin | sti1 | sti2 | sti3 | sti4 | sti5;
-endmodule;
+endmodule
 
 module pt1pt2_routing(
   input xor_a_mux, xor_b_mux, xor_inv_mux,
@@ -221,7 +284,7 @@ module pt1pt2_routing(
     .a1(1'b1),
     .q(y1y2vcc)
   );
-endmodule;
+endmodule
 
 
 module pt3_routing(
@@ -229,7 +292,7 @@ module pt3_routing(
   output ffar
 );
   assign ffar = ar | gclrgnd;
-endmodule;
+endmodule
 
 module pt4_routing(
   input pt4_mux, pt4_func_mux,
@@ -262,7 +325,7 @@ module pt4_routing(
     .a1(1'b1),
     .q(ffen)
   );
-endmodule;
+endmodule
 
 module pt5_routing(
   input pt5_func_mux,
@@ -277,7 +340,7 @@ module pt5_routing(
     .q0(vcc_pt5),
     .q1(as)
   );
-endmodule;
+endmodule
 
 module xor_a_side(
   input xor_a_mux,
@@ -292,7 +355,7 @@ module xor_a_side(
     .q0(xta),
     .q1(casout)
   );
-endmodule;
+endmodule
 
 module xor_b_side(
   input xor_b_mux,
@@ -306,7 +369,7 @@ module xor_b_side(
     .q(xtb)
   );
 
-endmodule;
+endmodule
 
 module goeselector(
   input [0:2]oe_mux,
@@ -327,7 +390,7 @@ module goeselector(
       default: qoe = 1'b0;
     endcase;
   end
-endmodule;
+endmodule
 
 module gclk_selector(
   input [0:1]gclk_mux,
@@ -342,7 +405,7 @@ module gclk_selector(
       default: qclk = 1'b0;
     endcase;
   end
-endmodule;
+endmodule
 
 module gclr_selector(
   input gclr_mux,
@@ -350,4 +413,4 @@ module gclr_selector(
   output gclrgnd
 );
   assign gclrgnd = gclr & ~gclr_mux; // | 1'b0 & gclr_mux;
-endmodule;
+endmodule

@@ -13,7 +13,7 @@
 module macrocell(
         input pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
               gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
-              xor_inv_mux, d_mux, dfast_mux, storage_mux, fb_mux, o_mux,
+              xor_inv_mux, d_mux, storage_mux, fb_mux, o_mux,
         input [0:2]oe_mux,
         input [0:1]gclk_mux,
 
@@ -111,6 +111,9 @@ module macrocell(
   outputpiece outputter(
     .o_mux(o_mux),
     .out(xorout), .ffq(ffq), .oe(qoe),
-    .q(pad_v)
+    .q(q)
   );
-endmodule;
+
+  assign mc_fb_v = fb_mux & xorout | ~fb_mux & ffq;
+  assign pad_v = q;
+endmodule

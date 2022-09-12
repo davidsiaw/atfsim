@@ -6,9 +6,9 @@
 module dualmux(input msel, input q0default, q1default, signal, output q0, q1);
   assign q0 = q0default &  msel | signal & ~msel;
   assign q1 = q1default & ~msel | signal &  msel;
-endmodule;
+endmodule
 
 // choose one
 module mux(input mux, input a0, a1, output q);
   assign q = a0 & ~mux | a1 & mux;
-endmodule;
+endmodule
