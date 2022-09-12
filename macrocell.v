@@ -1,119 +1,62 @@
-`include "cellparts.v"
+`include "cellcore.v"
 
-// conventions:
-//
-// every module - 
-// - must have two input keywords: first is for mux values, second is for signal values.
-// - must have at least one output
-// - signals have _v suffix
-// - mux values have _mux suffix
-// - internals have no suffix
-// - common design patters should be refactored into a module
+// The Macrocell here is defined as the cellcore + the product
+// input modules that give the macrocell its product terms.
+
+// this is the same definition as that given by the datasheet
+// the distinction between its core and product terms is made
+// here to make the code easier to understand
 
 module macrocell(
-        input pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
-              gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
-              xor_inv_mux, d_mux, storage_mux, fb_mux, o_mux,
-        input [0:2]oe_mux,
-        input [0:1]gclk_mux,
+  input [0:2]oe_mux,
+  input [0:1]gclk_mux,
+  input [0:479]ptgroupbitmap_mux,
 
-        input pt1_v, pt2_v, pt3_v, pt4_v, pt5_v,
-              casin_v, gclr_v,
-        input [0:5]goe_v,
-        input [0:2]gclk_v,
+  input pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
+        gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
+        xor_inv_mux, d_mux, dfast_mux, storage_mux, fb_mux, o_mux,
 
-        output casout_v, pad_v, mc_flb_v, mc_fb_v
-    );
+  input [0:39]uim,
+  input [0:15]in_flb,
+  input [0:5]goe,
+  input [0:2]gclk,
+  input casin,
+  input gclr,
+  output pad,
+  output mc_fb,
+  output casout,
+  output mc_flb
+);
 
-  wire sti1, sti2;
-  wire xtb, ffqn, y2;
-  prexor_section prexor(
-      .pt1_mux(pt1_mux), .pt2_mux(pt2_mux), .xor_a_mux(xor_a_mux), .xor_b_mux(xor_b_mux), .xor_inv_mux(xor_inv_mux),
-      .pt1_v(pt1_v), .pt2_v(pt2_v), .ffqn_v(ffqn),
-      .xtb_v(xtb), .sti1_v(sti1), .sti2_v(sti2), .y2_v(y2), .mc_flb_v(mc_flb_v)
+  wire [0:4]pt;
+
+  generate
+    genvar i;
+    for (i=0; i<5; i=i+1) begin : gen_pti
+      productinput pti(
+        .ptbitmap_mux(ptgroupbitmap_mux[i*96:i*96+95]),
+        .uim_p(uim),
+        .mc_flb(in_flb),
+        .pt(pt[i])
+      );
+    end
+  endgenerate;
+
+  wire inv_mc_flb;
+
+  cellcore mc(
+    pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
+    gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
+    xor_inv_mux, d_mux, dfast_mux, storage_mux, fb_mux, o_mux,
+    oe_mux,
+    gclk_mux,
+
+    pt[0], pt[1], pt[2], pt[3], pt[4],
+    casin,
+    gclr, goe, gclk,
+
+    casout, pad, inv_mc_flb, mc_fb
   );
 
-  wire xta, sum;
-  // combine section
-  xor_a_side xora(
-    .xor_a_mux(xor_a_mux),
-    .y2(y2), .sum(sum),
-    .xta(xta), .casout(casout_v)
-  );
-
-  wire sti3;
-  wire ffar, gclrgnd;
-  pt3_section pt3m(
-    .pt3_mux(pt3_mux),
-    .pt3_v(pt3_v), .gclrgnd_v(gclrgnd),
-    .sti3_v(sti3), .ffar_v(ffar)
-  );
-
-  wire sti4;
-  wire ffen, ffclk, qclk;
-  pt4_section pt4m(
-    .pt4_mux(pt4_mux), .pt4_func_mux(pt4_func_mux),
-    .pt4_v(pt4_v), .qclk_v(qclk),
-    .sti4_v(sti4), .ffen_v(ffen), .ffclk_v(ffclk)
-  );
-
-  wire sti5;
-  wire vcc_pt5, as;
-  pt5_section pt5m(
-    .pt5_mux(pt5_mux), .pt5_func_mux(pt5_func_mux),
-    .pt5_v(pt5_v),
-    .sti5_v(sti5), .as_v(as), .vcc_pt5_v(vcc_pt5)
-  );
-
-
-  sumpiece orsum(
-    .casin(casin_v), .sti1(sti1), .sti2(sti2), .sti3(sti3), .sti4(sti4), .sti5(sti5),
-    .sum(sum)
-  );
-
-  wire ffd, xorout, q;
-  xornest xors(
-    .xor_inv_mux(xor_inv_mux), .o_mux(o_mux), .d_mux(d_mux),
-    .xta(xta), .xtb(xtb), .y2(y2), .q(q),
-    .ffd(ffd), .out(xorout)
-  );
-
-
-  // globin section
-  wire qoe;
-  goeselector goeselect(
-    .oe_mux(oe_mux),
-    .goe(goe_v), .vcc_pt5(vcc_pt5),
-    .qoe(qoe)
-  );
-
-  gclk_selector gclkselect(
-    .gclk_mux(gclk_mux),
-    .gclk(gclk_v),
-    .qclk(qclk)
-  );
-
-  gclr_selector gclrselect(
-    .gclr_mux(gclr_mux),
-    .gclr(gclr_v),
-    .gclrgnd(gclrgnd)
-  );
-
-  // output section
-  wire ffq;
-
-  dff storage(
-    .storage_mux(storage_mux),
-    .ffd(ffd), .ffclk(ffclk), .ffen(ffen), .ffas(as), .ffar(ffar),
-    .ffq(ffq), .ffqn(ffqn)
-  );
-
-  outputpiece outputter(
-    .o_mux(o_mux),
-    .out(xorout), .ffq(ffq), .oe(qoe),
-    .q(q)
-  );
-
-  assign mc_fb_v = fb_mux & xorout | ~fb_mux & ffq;
-  assign pad_v = q;
+  assign mc_flb = ~inv_mc_flb;
 endmodule
