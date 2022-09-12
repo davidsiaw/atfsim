@@ -1,7 +1,9 @@
+`include "mux.v"
 
 // The selection procedure here is simple
 // it just chooses the input where it is 0 and 1 everywhere else
 // the fitter needs to ground all inputs of unused AND gates
+(* cxxrtl_blackbox *)
 module productinput(
   input [0:95]ptbitmap_mux,
   input [0:15]mc_flb,
@@ -19,7 +21,7 @@ module productinput(
 
     for (i=0; i<16; i=i+1) begin : gen_flb
       mux flb_select(
-        .mux(ptbitmap_mux[i]),
+        .isel(ptbitmap_mux[i]),
         .a0(mc_flb[i]),
         .a1(1'b1),
         .q(andinput[i])
@@ -28,14 +30,14 @@ module productinput(
 
     for (i=0; i<40; i=i+1) begin : gen_uim
       mux uim_p_select(
-        .mux(ptbitmap_mux[16+i*2]),
+        .isel(ptbitmap_mux[16+i*2]),
         .a0(uim_p[i]),
         .a1(1'b1),
         .q(andinput[16+i*2])
       );
 
       mux uim_n_select(
-        .mux(ptbitmap_mux[16+i*2+1]),
+        .isel(ptbitmap_mux[16+i*2+1]),
         .a0(uim_n[i]),
         .a1(1'b1),
         .q(andinput[16+i*2+1])

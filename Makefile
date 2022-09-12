@@ -1,32 +1,29 @@
 VERILOG_DIR=verilog
 CXX_DIR=cxx
 
-VERILOG_FILES=$(VERILOG_DIR)/macrocell.v
+VERILOG_FILES=$(wildcard $(VERILOG_DIR)/*.v)
+COMPONENTS=$(patsubst $(VERILOG_DIR)/%.v, %, $(VERILOG_FILES))
 
-VERILOG_STEPS=$(patsubst verilog/%.v, obj/%.verilog_step, $(VERILOG_FILES))
+YOSYS_SCRIPTS=$(patsubst %, obj/%.ys, $(COMPONENTS))
 
-CXXRTL_FILENAME=v
-CXXRTL_SOURCE=$(CXXRTL_FILENAME).cpp
-CXXRTL_HEADER=$(CXXRTL_FILENAME).h
-CXXRTL_FILES=obj/$(CXXRTL_SOURCE) obj/$(CXXRTL_HEADER)
+CXXRTL_OBJECTS=$(patsubst %, obj/%.o, $(COMPONENTS))
+CXXRTL_SOURCES=$(patsubst %, obj/%.cpp, $(COMPONENTS))
+CXXRTL_HEADERS=$(patsubst %, obj/%.h, $(COMPONENTS))
 
-all: obj/$(CXXRTL_FILENAME).o
+all: $(CXXRTL_OBJECTS)
 
-obj/%.verilog_step: verilog/%.v
+obj/%.ys: $(VERILOG_DIR)/%.v
 	mkdir -p obj
 	echo read_verilog $< > $@
+	echo write_cxxrtl -O6 -header $*.cpp >> $@
 
-obj/steps.ys: $(VERILOG_STEPS)
-	cat $^ > obj/steps.ys
-	echo write_cxxrtl -header $(CXXRTL_SOURCE) >> obj/steps.ys
+obj/%.cpp obj/%.h: obj/%.ys
+	yosys $<
+	mv $*.cpp obj
+	mv $*.h obj
 
-$(CXXRTL_FILES): obj/steps.ys
-	yosys obj/steps.ys
-	mv $(CXXRTL_SOURCE) obj
-	mv $(CXXRTL_HEADER) obj
-
-obj/$(CXXRTL_FILENAME).o: $(CXXRTL_FILES)
-	clang++ -g -std=c++14 -I `yosys-config --datdir`/include -c obj/$(CXXRTL_SOURCE) -o $@
+obj/%.o: obj/%.cpp obj/%.h
+	clang++ -g -std=c++14 -I `yosys-config --datdir`/include -c $< -o $@
 
 clean:
 	rm -rf obj

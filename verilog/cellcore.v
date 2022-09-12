@@ -1,4 +1,19 @@
-`include "cellparts.v"
+`include "goe_selector.v"
+`include "gclk_selector.v"
+`include "gclr_selector.v"
+
+`include "xor_a_side.v"
+`include "xor_b_side.v"
+
+`include "pt3_section.v"
+`include "pt4_section.v"
+`include "pt5_section.v"
+
+`include "outputpiece.v"
+`include "sumpiece.v"
+`include "storage.v"
+
+`include "xornest.v"
 
 // conventions:
 //
@@ -10,6 +25,7 @@
 // - internals have no suffix
 // - common design patters should be refactored into a module
 
+(* cxxrtl_blackbox *)
 module cellcore(
         input pt1_mux, pt2_mux, pt3_mux, pt4_mux, pt5_mux,
               gclr_mux, pt4_func_mux, pt5_func_mux, xor_a_mux, xor_b_mux,
@@ -27,7 +43,7 @@ module cellcore(
 
   wire sti1, sti2;
   wire xtb, ffqn, y2;
-  prexor_section prexor(
+  xor_b_side xorb(
       .pt1_mux(pt1_mux), .pt2_mux(pt2_mux), .xor_a_mux(xor_a_mux), .xor_b_mux(xor_b_mux), .xor_inv_mux(xor_inv_mux),
       .pt1_v(pt1_v), .pt2_v(pt2_v), .ffqn_v(ffqn),
       .xtb_v(xtb), .sti1_v(sti1), .sti2_v(sti2), .y2_v(y2), .mc_flb_v(mc_flb_v)
@@ -81,7 +97,7 @@ module cellcore(
 
   // globin section
   wire qoe;
-  goeselector goeselect(
+  goe_selector goeselect(
     .oe_mux(oe_mux),
     .goe(goe_v), .vcc_pt5(vcc_pt5),
     .qoe(qoe)
@@ -102,7 +118,7 @@ module cellcore(
   // output section
   wire ffq;
 
-  dff storage(
+  storage dff(
     .storage_mux(storage_mux),
     .ffd(ffd), .ffclk(ffclk), .ffen(ffen), .ffas(as), .ffar(ffar),
     .ffq(ffq), .ffqn(ffqn)

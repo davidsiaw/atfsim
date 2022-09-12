@@ -1,3 +1,5 @@
+`ifndef DUALMUX_V
+`define DUALMUX_V
 
 // a common component in the CPLD
 // this module takes msel which chooses which direction
@@ -8,7 +10,4 @@ module dualmux(input msel, input q0default, q1default, signal, output q0, q1);
   assign q1 = q1default & ~msel | signal &  msel;
 endmodule
 
-// choose one
-module mux(input mux, input a0, a1, output q);
-  assign q = a0 & ~mux | a1 & mux;
-endmodule
+`endif // DUALMUX_V

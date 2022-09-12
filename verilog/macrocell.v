@@ -8,6 +8,7 @@
 // the distinction between its core and product terms is made
 // here to make the code easier to understand
 
+(* cxxrtl_blackbox *)
 module macrocell(
   input [0:2]oe_mux,
   input [0:1]gclk_mux,
