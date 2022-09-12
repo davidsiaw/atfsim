@@ -1,0 +1,7 @@
+subject :mux
+
+given isel: '0 1 0 1 0 1 0 1'
+given   a0: '0 0 1 1 0 0 1 1'
+given   a1: '0 0 0 0 1 1 1 1'
+
+expect   q: '0 0 1 0 0 1 1 1'

@@ -1,0 +1,106 @@
+#!/usr/bin/env ruby
+
+class DSL
+    attr_reader :module, :givens, :expects
+    def initialize(file)
+        @givens = {}
+        @expects = {}
+        
+        instance_eval File.read(file), file
+    end
+
+    def subject(name)
+        @module = name
+    end
+
+    def given(hash)
+        @givens[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '')
+    end
+
+    def expect(hash)
+        @expects[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '')
+    end
+end
+
+class Generator
+    def initialize(dsl)
+        @dsl = dsl
+    end
+
+    def size
+        @size ||= begin
+            result = 0
+            @dsl.givens.values.each do |v|
+                result = v.length if v.length > result
+            end
+            @dsl.expects.values.each do |v|
+                result = v.length if v.length > result
+            end
+            result
+        end
+    end
+
+    def inputtable
+        (@dsl.givens.to_a + @dsl.expects.to_a).map do |k, v|
+            "bool t_#{k}[] = {#{v.split('').join(', ')}};"
+        end.join("\n#{' '*4}")
+    end
+
+    def checkers
+        @dsl.expects.map do |k, v|
+            "failure = failure | (top.p_#{k}.get<bool>() ^ t_#{k}[cycle]);"
+        end.join("\n#{' '*8}")
+    end
+
+    def setters
+        @dsl.givens.map do |k, v|
+            "top.p_#{k}.set<bool>(t_#{k}[cycle]);"
+        end.join("\n#{' '*8}")
+    end
+
+    def expectors
+        @dsl.expects.map do |k, v|
+            "top.p_#{k}.get<bool>() << (top.p_#{k}.get<bool>() ^ t_#{k}[cycle])"
+        end.join(" << ")
+    end
+
+    def output
+        <<~CPP
+            #include <iostream>
+            #include "#{@dsl.module}.h"
+                
+            using namespace std;
+
+            int main()
+            {
+                bool failure = false;
+
+                cxxrtl_design::p_#{@dsl.module} top;
+                top.step();
+
+                #{inputtable}
+
+                for(int cycle=0;cycle<#{size};++cycle)
+                {
+                    #{setters}
+                    top.step();
+
+                    #{checkers}
+
+                    cout << #{expectors} << endl;
+                }
+
+                return failure;
+            }
+        CPP
+    end
+end
+
+dsl = DSL.new(ARGV[0])
+
+# p dsl
+if ARGV[1] == 's'
+    puts dsl.module
+else
+    puts Generator.new(dsl).output
+end
