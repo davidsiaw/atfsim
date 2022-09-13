@@ -68,7 +68,7 @@ class Generator
 
             # some weird CXXRTL behavior that makes o_mux become o__mux (???)
             c = k.to_s
-            c.sub!(/^o_([^_])/, 'o__\1')
+            c.sub!('_', '__')
 
             "top.p_#{c}.set<bool>(t_#{k}[cycle]);"
         end.join("\n#{' '*8}")
@@ -86,6 +86,10 @@ class Generator
         end.join(" | ")
     end
 
+    def modulename
+        @dsl.module.to_s.sub('_', '__')
+    end
+
     def output
         <<~CPP
             #include <iostream>
@@ -97,7 +101,7 @@ class Generator
             {
                 bool failure = false;
 
-                cxxrtl_design::p_#{@dsl.module} top;
+                cxxrtl_design::p_#{modulename} top;
                 top.step();
 
                 #{consttable}

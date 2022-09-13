@@ -1,0 +1,6 @@
+subject :gclr_selector
+
+given  gclr_mux: '0 0 1 1'
+given      gclr: '0 1 0 1'
+
+expect  gclrgnd: '0 1 0 0'
