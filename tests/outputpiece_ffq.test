@@ -1,0 +1,9 @@
+subject :outputpiece
+
+const o_mux: 0
+
+given ffq: '0 0 0 0 1 1 1 1'
+given out: '0 0 1 1 0 0 1 1'
+given  oe: '0 1 0 1 0 1 0 1'
+
+expect  q: '0 0 0 0 0 1 0 1'

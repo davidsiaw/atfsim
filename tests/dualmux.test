@@ -1,0 +1,9 @@
+subject :dualmux
+
+given        msel: '0 0 0 0 0 0 0 0  1 1 1 1 1 1 1 1'
+given   q0default: '0 0 0 0 1 1 1 1  0 0 0 0 1 1 1 1'
+given   q1default: '0 0 1 1 0 0 1 1  0 0 1 1 0 0 1 1'
+given      signal: '0 1 0 1 0 1 0 1  0 1 0 1 0 1 0 1'
+
+expect         q0: '0 1 0 1 0 1 0 1  0 0 0 0 1 1 1 1'
+expect         q1: '0 0 1 1 0 0 1 1  0 1 0 1 0 1 0 1'

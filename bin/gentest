@@ -1,8 +1,9 @@
 #!/usr/bin/env ruby
 
 class DSL
-    attr_reader :module, :givens, :expects
+    attr_reader :module, :givens, :expects, :consts
     def initialize(file)
+        @consts = {}
         @givens = {}
         @expects = {}
         
@@ -11,6 +12,10 @@ class DSL
 
     def subject(name)
         @module = name
+    end
+
+    def const(hash)
+        @consts[hash.keys.first] = hash.values.first
     end
 
     def given(hash)
@@ -40,6 +45,12 @@ class Generator
         end
     end
 
+    def consttable
+        @dsl.consts.map do |k, v|
+            "bool t_#{k}[] = {#{(v.to_s*size).split('').join(', ')}};"
+        end.join("\n#{' '*4}")
+    end
+
     def inputtable
         (@dsl.givens.to_a + @dsl.expects.to_a).map do |k, v|
             "bool t_#{k}[] = {#{v.split('').join(', ')}};"
@@ -53,15 +64,26 @@ class Generator
     end
 
     def setters
-        @dsl.givens.map do |k, v|
-            "top.p_#{k}.set<bool>(t_#{k}[cycle]);"
+        (@dsl.givens.to_a + @dsl.consts.to_a).map do |k, v|
+
+            # some weird CXXRTL behavior that makes o_mux become o__mux (???)
+            c = k.to_s
+            c.sub!(/^o_([^_])/, 'o__\1')
+
+            "top.p_#{c}.set<bool>(t_#{k}[cycle]);"
         end.join("\n#{' '*8}")
     end
 
-    def expectors
+    def outputlist
         @dsl.expects.map do |k, v|
-            "top.p_#{k}.get<bool>() << (top.p_#{k}.get<bool>() ^ t_#{k}[cycle])"
+            "top.p_#{k}.get<bool>()"
         end.join(" << ")
+    end
+
+    def mismatchlist
+        @dsl.expects.map do |k, v|
+            "(top.p_#{k}.get<bool>() ^ t_#{k}[cycle])"
+        end.join(" | ")
     end
 
     def output
@@ -78,6 +100,7 @@ class Generator
                 cxxrtl_design::p_#{@dsl.module} top;
                 top.step();
 
+                #{consttable}
                 #{inputtable}
 
                 for(int cycle=0;cycle<#{size};++cycle)
@@ -87,7 +110,7 @@ class Generator
 
                     #{checkers}
 
-                    cout << #{expectors} << endl;
+                    cout << #{outputlist} << (#{mismatchlist}) << endl;
                 }
 
                 return failure;
@@ -96,11 +119,91 @@ class Generator
     end
 end
 
+class Grapher
+    def initialize(dsl, contents)
+        @dsl = dsl
+        @contents = contents
+    end
+
+    def graph(arr)
+        cur = 0
+        res = ''
+        arr.each do |x|
+            nxt = x.to_i
+
+            if cur == 0
+                if nxt == 1
+                    res += '/'
+                else
+                    res += '_'
+                end
+            else
+                if nxt == 0
+                    res += '\\'
+                else
+                    res += '‾'
+                end
+            end
+
+            cur = nxt
+
+            if cur == 0
+                res += '_'
+            else
+                res += '‾'
+            end
+        end
+        res
+    end
+
+    def expectkeys
+        @dsl.expects.keys
+    end
+
+    def expectvals
+        @dsl.expects.values
+    end
+
+    def toks
+        @toks ||= @contents.split("\n");
+    end
+
+    def maxsize
+        @maxsize ||= (
+            ['mismatch'] +
+            expectkeys.map{|x| "expected #{x}"}
+        ).map(&:length).max
+    end
+
+    def label(name, n = nil)
+        "#{name} #{n.nil? ? '' : expectkeys[n]}".strip.rjust(maxsize + 2, ' ')
+    end
+
+    def output
+        result = []
+        (toks.first.length - 1).times do |n|
+            arr = toks.map{|x| x[n]}
+            result << "#{label('detected', n)}: #{graph(arr)}"
+            result << ''
+            result << "#{label('expected', n)}: #{graph(expectvals[n].split(''))}"
+            result << ''
+        end
+    
+        arr = toks.map{|x| x[-1]}
+        result << "#{label('mismatch')}: #{graph(arr)}"
+    end
+end
+
+
 dsl = DSL.new(ARGV[0])
 
 # p dsl
 if ARGV[1] == 's'
     puts dsl.module
+elsif File.exist?(ARGV[1].to_s)
+    contents = File.read(ARGV[1])
+
+    puts Grapher.new(dsl, contents).output
 else
     puts Generator.new(dsl).output
 end
