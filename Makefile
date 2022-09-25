@@ -45,7 +45,7 @@ obj/%.o: obj/%.cpp obj/%.h
 obj/testresult_%: obj/test_%
 	@echo [TEST] $<
 	@$< > obj/tmp || (echo "$< failed $$?"; bin/gentest tests/$*.test obj/tmp; exit 1)
-	cp obj/tmp $@
+	@cp obj/tmp $@
 
 obj/testwaveform_%: obj/testresult_%
 	@echo [WAVE] $<

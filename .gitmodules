@@ -1,0 +1,3 @@
+[submodule "prjbureau"]
+	path = prjbureau
+	url = https://github.com/whitequark/prjbureau
