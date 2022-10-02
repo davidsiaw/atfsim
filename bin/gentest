@@ -1,201 +1,268 @@
 #!/usr/bin/env ruby
 
 class DSL
-    attr_reader :module, :givens, :expects, :consts
-    def initialize(file)
-        @consts = {}
-        @givens = {}
-        @expects = {}
-        
-        instance_eval File.read(file), file
-    end
+  attr_reader :module, :givens, :expects, :consts
+  def initialize(file)
+    @consts = {}
+    @givens = {}
+    @expects = {}
+    
+    instance_eval File.read(file), file
+  end
 
-    def subject(name)
-        @module = name
-    end
+  def subject(name)
+    @module = name
+  end
 
-    def const(hash)
-        @consts[hash.keys.first] = hash.values.first
-    end
+  def const(hash)
+    @consts[hash.keys.first] = hash.values.first
+  end
 
-    def given(hash)
-        @givens[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '')
-    end
+  def given(hash)
+    @givens[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '').split('')
+  end
 
-    def expect(hash)
-        @expects[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '')
-    end
+  def givenv(hash)
+    @givens[hash.keys.first] = hash.values.first
+  end
+
+  def expect(hash)
+    @expects[hash.keys.first] = hash.values.first.gsub(/[^01]+/, '').split('')
+  end
 end
 
 class Generator
-    def initialize(dsl)
-        @dsl = dsl
+  def initialize(dsl)
+    @dsl = dsl
+  end
+
+  def size
+    @size ||= begin
+      result = 0
+      @dsl.givens.values.each do |v|
+        result = v.length if v.length > result
+      end
+      @dsl.expects.values.each do |v|
+        result = v.length if v.length > result
+      end
+      result
     end
+  end
 
-    def size
-        @size ||= begin
-            result = 0
-            @dsl.givens.values.each do |v|
-                result = v.length if v.length > result
-            end
-            @dsl.expects.values.each do |v|
-                result = v.length if v.length > result
-            end
-            result
-        end
+  def consttable
+    @dsl.consts.map do |k, v|
+      "bool t_#{k}[] = {#{(v.to_s*size).split('').join(', ')}};"
+    end.join("\n#{' '*4}")
+  end
+
+  def inputtable
+    (@dsl.givens.to_a + @dsl.expects.to_a).map do |k, v|
+      "unsigned int t_#{k}[] = {#{v.join(', ')}};"
+    end.join("\n#{' '*4}")
+  end
+
+  def checkers
+    @dsl.expects.map do |k, v|
+      "failure = failure | (top.p_#{k}.get<bool>() ^ t_#{k}[cycle]);"
+    end.join("\n#{' '*8}")
+  end
+
+  def setters
+    (@dsl.givens.to_a + @dsl.consts.to_a).map do |k, v|
+
+      # some weird CXXRTL behavior that makes o_mux become o__mux (???)
+      c = k.to_s
+      c.sub!('_', '__')
+
+      "top.p_#{c}.set<unsigned int>(t_#{k}[cycle]);"
+    end.join("\n#{' '*8}")
+  end
+
+  def outputlist
+    @dsl.expects.map do |k, v|
+      "top.p_#{k}.get<bool>()"
+    end.join(" << ")
+  end
+
+  def mismatchlist
+    @dsl.expects.map do |k, v|
+      "(top.p_#{k}.get<bool>() ^ t_#{k}[cycle])"
+    end.join(" | ")
+  end
+
+  def modulename
+    @dsl.module.to_s.sub('_', '__')
+  end
+
+  def output
+    <<~CPP
+      #include <iostream>
+      #include "#{@dsl.module}.h"
+        
+      using namespace std;
+
+      int main()
+      {
+        bool failure = false;
+
+        cxxrtl_design::p_#{modulename} top;
+        top.step();
+
+        #{consttable}
+        #{inputtable}
+
+        for(int cycle=0;cycle<#{size};++cycle)
+        {
+          #{setters}
+          top.step();
+
+          #{checkers}
+
+          cout << #{outputlist} << (#{mismatchlist}) << endl;
+        }
+
+        return failure;
+      }
+    CPP
+  end
+end
+
+class GraphValuePair
+  def initialize(left, right)
+    @left = left
+    @right = right
+  end
+
+  def bitof(num, bit)
+    num >> bit & 1
+  end
+
+  def output(bit)
+    leftbit = bitof(@left.to_i, bit)
+    rightbit = bitof(@right.to_i, bit)
+
+    if leftbit == 0 && rightbit == 0
+      '__'
+    elsif leftbit == 0 && rightbit == 1
+      '_/'
+    elsif leftbit == 1 && rightbit == 0
+      '‾\\'
+    elsif leftbit == 1 && rightbit == 1
+      '‾‾'
     end
-
-    def consttable
-        @dsl.consts.map do |k, v|
-            "bool t_#{k}[] = {#{(v.to_s*size).split('').join(', ')}};"
-        end.join("\n#{' '*4}")
-    end
-
-    def inputtable
-        (@dsl.givens.to_a + @dsl.expects.to_a).map do |k, v|
-            "bool t_#{k}[] = {#{v.split('').join(', ')}};"
-        end.join("\n#{' '*4}")
-    end
-
-    def checkers
-        @dsl.expects.map do |k, v|
-            "failure = failure | (top.p_#{k}.get<bool>() ^ t_#{k}[cycle]);"
-        end.join("\n#{' '*8}")
-    end
-
-    def setters
-        (@dsl.givens.to_a + @dsl.consts.to_a).map do |k, v|
-
-            # some weird CXXRTL behavior that makes o_mux become o__mux (???)
-            c = k.to_s
-            c.sub!('_', '__')
-
-            "top.p_#{c}.set<bool>(t_#{k}[cycle]);"
-        end.join("\n#{' '*8}")
-    end
-
-    def outputlist
-        @dsl.expects.map do |k, v|
-            "top.p_#{k}.get<bool>()"
-        end.join(" << ")
-    end
-
-    def mismatchlist
-        @dsl.expects.map do |k, v|
-            "(top.p_#{k}.get<bool>() ^ t_#{k}[cycle])"
-        end.join(" | ")
-    end
-
-    def modulename
-        @dsl.module.to_s.sub('_', '__')
-    end
-
-    def output
-        <<~CPP
-            #include <iostream>
-            #include "#{@dsl.module}.h"
-                
-            using namespace std;
-
-            int main()
-            {
-                bool failure = false;
-
-                cxxrtl_design::p_#{modulename} top;
-                top.step();
-
-                #{consttable}
-                #{inputtable}
-
-                for(int cycle=0;cycle<#{size};++cycle)
-                {
-                    #{setters}
-                    top.step();
-
-                    #{checkers}
-
-                    cout << #{outputlist} << (#{mismatchlist}) << endl;
-                }
-
-                return failure;
-            }
-        CPP
-    end
+  end
 end
 
 class Grapher
-    def initialize(dsl, contents)
-        @dsl = dsl
-        @contents = contents
+  def initialize(arr, elementwidth=nil)
+    @arr = arr
+    @elementwidth = elementwidth
+  end
+
+  def elementwidth
+    @elementwidth ||= @arr.map do |x|
+      x.to_i.to_s(16).length
+    end.max
+  end
+
+  def bitwidth
+    @bitwidth ||= @arr.map do |x|
+      x.to_i.to_s(2).length
+    end.max
+  end
+
+  def pairs
+    z = @arr + [@arr[-1]]
+    z[0..-2].each_with_index.map { |x, i| GraphValuePair.new(x, z[i+1]) }
+  end
+
+  def output(bit=0)
+    pairs.map{|x|x.output(bit)}.join('')
+  end
+end
+
+class Displayer
+  def initialize(dsl, contents)
+    @dsl = dsl
+    @contents = contents
+  end
+
+  def graph(arr)
+    Grapher.new(arr).output
+  end
+
+  def expectkeys
+    @dsl.expects.keys
+  end
+
+  def expectvals
+    @dsl.expects.values
+  end
+
+  def expectgraphs
+    @dsl.expects.values.map{|x| Grapher.new(x)}
+  end
+
+  def givenkeys
+    @dsl.givens.keys
+  end
+
+  def givenvals
+    @dsl.givens.values
+  end
+
+  def givengraphs
+    @dsl.givens.values.map{|x| Grapher.new(x)}
+  end
+
+  def toks
+    @toks ||= @contents.split("\n");
+  end
+
+  def output
+    tcd = TwoColumnDisplay.new
+
+    @dsl.givens.each_with_index do |(k,v), i|
+      arr = v
+      givengraphs[i].bitwidth.times do |bit|
+        tcd.insert_pair("given #{k}[#{bit}]:", givengraphs[i].output(bit))
+      end
     end
 
-    def graph(arr)
-        cur = 0
-        res = ''
-        arr.each do |x|
-            nxt = x.to_i
-
-            if cur == 0
-                if nxt == 1
-                    res += '/'
-                else
-                    res += '_'
-                end
-            else
-                if nxt == 0
-                    res += '\\'
-                else
-                    res += '‾'
-                end
-            end
-
-            cur = nxt
-
-            if cur == 0
-                res += '_'
-            else
-                res += '‾'
-            end
-        end
-        res
+    (toks.first.length - 1).times do |n|
+      arr = toks.map{|x| x[n]}
+      tcd.insert_pair("detected #{expectkeys[n]}:", graph(arr))
+      tcd.insert_pair("expected #{expectkeys[n]}:", expectgraphs[n].output)
     end
 
-    def expectkeys
-        @dsl.expects.keys
-    end
+    arr = toks.map{|x| x[-1]}
+    tcd.insert_pair('mismatch:', graph(arr))
 
-    def expectvals
-        @dsl.expects.values
-    end
+    tcd.output
+  end
+end
 
-    def toks
-        @toks ||= @contents.split("\n");
-    end
+class TwoColumnDisplay
+  def initialize
+    @pairs = []
+  end
 
-    def maxsize
-        @maxsize ||= (
-            ['mismatch'] +
-            expectkeys.map{|x| "expected #{x}"}
-        ).map(&:length).max
-    end
+  def insert_pair(left, right)
+    @pairs << [left, right]
+  end
 
-    def label(name, n = nil)
-        "#{name} #{n.nil? ? '' : expectkeys[n]}".strip.rjust(maxsize + 2, ' ')
-    end
+  def calc_maxsize
+    @pairs.map {|x,y| x.length}.max
+  end
 
-    def output
-        result = []
-        (toks.first.length - 1).times do |n|
-            arr = toks.map{|x| x[n]}
-            result << "#{label('detected', n)}: #{graph(arr)}"
-            result << ''
-            result << "#{label('expected', n)}: #{graph(expectvals[n].split(''))}"
-            result << ''
-        end
-    
-        arr = toks.map{|x| x[-1]}
-        result << "#{label('mismatch')}: #{graph(arr)}"
+  def output
+    maxsize = calc_maxsize
+    result = []
+    @pairs.each do |x, y|
+      result << "#{x.strip.rjust(maxsize + 2, ' ')} #{y}"
     end
+    result
+  end
 end
 
 
@@ -203,11 +270,11 @@ dsl = DSL.new(ARGV[0])
 
 # p dsl
 if ARGV[1] == 's'
-    puts dsl.module
+  puts dsl.module
 elsif File.exist?(ARGV[1].to_s)
-    contents = File.read(ARGV[1])
+  contents = File.read(ARGV[1])
 
-    puts Grapher.new(dsl, contents).output
+  puts Displayer.new(dsl, contents).output
 else
-    puts Generator.new(dsl).output
+  puts Generator.new(dsl).output
 end

@@ -25,10 +25,10 @@ obj/%.ys: $(VERILOG_DIR)/%.v
 	echo read_verilog $< > $@
 	echo write_cxxrtl -O6 -header $*.cpp >> $@
 
-obj/test_%.cpp: tests/%.test
+obj/test_%.cpp: tests/%.test bin/gentest
 	bin/gentest $< > $@
 
-obj/test_%.subject: tests/%.test
+obj/test_%.subject: tests/%.test bin/gentest
 	bin/gentest $< s > $@
 
 obj/test_%: obj/test_%.cpp obj/test_%.subject

@@ -1,0 +1,36 @@
+subject :template_uim
+
+top = (1 << 6) - 1
+sweep = (0..top).to_a
+
+pattern_a = '01010101'
+pattern_b = '01010111'
+pattern_c = '01011101'
+pattern_d = '01011111'
+pattern_e = '01110101'
+pattern_f = '01110111'
+
+# apply mux correctly once
+givenv   uim_mux: [31] * 8 + [30] * 8 + [29] * 8 + [27] * 8 + [23] * 8 + [15] * 8 + 
+# misaligned once
+				  [30] * 8 + [29] * 8 + [27] * 8 + [23] * 8 + [15] * 8 + [31] * 8
+
+# apply test patterns twice
+
+given   input_31: (           + pattern_a + ('0' * 40)) * 2
+given   input_30: (('0' *  8) + pattern_b + ('0' * 32)) * 2
+given   input_29: (('0' * 16) + pattern_c + ('0' * 24)) * 2
+given   input_27: (('0' * 24) + pattern_d + ('0' * 16)) * 2
+given   input_23: (('0' * 32) + pattern_e + ('0' * 8) ) * 2
+given   input_15: (('0' * 40) + pattern_f             ) * 2
+
+# should produce patterns in first aligned muxes
+# quash patterns in misaligned muxes
+expectation = pattern_a +
+			  pattern_b +
+			  pattern_c +
+			  pattern_d +
+			  pattern_e +
+			  pattern_f + '0' * 48
+
+expect         q: expectation
